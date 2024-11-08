@@ -28,4 +28,14 @@ module "vpc" {
   external_nat_ip_ids = [aws_eip.eks_natgw_eip.id]
   external_nat_ips    = [aws_eip.eks_natgw_eip.public_ip]
 
+  public_subnet_tags = {
+    "kubernetes.io/role/elb"              = 1
+    "kubernetes.io/cluster/${var.cluster_name}" = "shared" #adding tags for deploy elb
+  }
+
+  private_subnet_tags = {
+    "kubernetes.io/role/internal-elb"     = 1
+    "kubernetes.io/cluster/${var.cluster_name}" = "shared" #adding tags for deploy elb
+  }
+
 }

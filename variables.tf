@@ -19,8 +19,3 @@ variable "cluster_name" {
   type = string
   description = "cluster name"
 }
-
-variable "profile" {
-  type = string
-  default = "default"
-}

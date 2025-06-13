@@ -1,62 +1,66 @@
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "~> 20.27.0"
+  version = "20.36.0"
 
   cluster_name    = var.cluster_name
-  cluster_version = "1.31"
+  cluster_version = "1.32"
 
-  cluster_endpoint_public_access  = true
+  cluster_endpoint_public_access = true
 
   cluster_addons = {
-    # coredns                = {}
+    coredns = {}
     eks-pod-identity-agent = {}
     kube-proxy             = {}
-    vpc-cni                = {}
+    vpc-cni = {}
+    aws-ebs-csi-driver = {}
+    metrics-server = {
+      most_recent = true
+    }
   }
 
-  vpc_id                   = module.vpc.vpc_id
-  subnet_ids               = module.vpc.private_subnets
-  control_plane_subnet_ids = module.vpc.intra_subnets
+  access_entries = {
+    super-admin = {
+      principal_arn = local.SSO_AdministratorAccess_role
 
-  self_managed_node_groups = {
-
-    default_node_group = {
-      create = false
+      policy_associations = {
+        cluster-admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
     }
+  }
 
-    spot-node-group = {
-      name       = "spot-node-group"
+  # Managed Node group
+  eks_managed_node_groups = {
+    managed_node = {
+      ami_type       = "AL2023_x86_64_STANDARD" # validate possible dynamically AIM assignment
+      instance_types = ["t2.medium"]
+
+      min_size = 1
+      max_size = 3
+      desired_size = 1
+
       subnet_ids = module.vpc.private_subnets
 
-      desired_size         = 1
-      min_size             = 1
-      max_size             = 2
-      bootstrap_extra_args = "--kubelet-extra-args '--node-labels=node.kubernetes.io/lifecycle=spot'"
+      iam_role_additional_policies = {
+        sqs_policy = aws_iam_policy.karpenter_policy.arn
+      }
 
-      use_mixed_instances_policy = true
-      mixed_instances_policy = {
-        instances_distribution = {
-          on_demand_base_capacity                  = 0
-          on_demand_percentage_above_base_capacity = 0
-          spot_allocation_strategy                 = "lowest-price" # "capacity-optimized" described here: https://aws.amazon.com/blogs/compute/introducing-the-capacity-optimized-allocation-strategy-for-amazon-ec2-spot-instances/
-        }
-
-        override = [
-          {
-            instance_type     = "t3.xlarge"
-            weighted_capacity = "1"
-          }
-        ]
+      labels = {
+        "karpenter.sh/controller" = "true"
       }
 
     }
-
   }
+  vpc_id     = module.vpc.vpc_id
+  subnet_ids = module.vpc.private_subnets
 
-  enable_cluster_creator_admin_permissions = true
+  enable_cluster_creator_admin_permissions = false
 
-  tags = {
+  node_security_group_tags = {
     "karpenter.sh/discovery" = var.cluster_name
   }
-
 }

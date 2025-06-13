@@ -1,1 +1,1 @@
-cluster_name = "guto-cluster1"
+cluster_name = "guto-cluster"
